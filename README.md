@@ -40,7 +40,9 @@ You will need Python installed, along with the Graphviz system software (require
    cd evolutionary_rock_paper_scissors
 
 2. insall requirements:
+   ```bash
     pip install -r requirements.txt
 
-3. run:
+4. run:
+   ```bash
    streamlit run app.py
