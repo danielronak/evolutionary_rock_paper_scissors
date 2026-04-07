@@ -1,0 +1,130 @@
+import random
+import json
+
+# ==========================================
+# 1. THE FSM ORGANISM
+# ==========================================
+class FSMAgent:
+    def __init__(self, num_states=10):
+        self.num_states = num_states
+        self.current_state = 0
+        self.fitness = 0
+        self.move_to_index = {'R': 1, 'P': 2, 'S': 3} 
+        
+        # DNA: { state_id: [Move, NextState_if_R, NextState_if_P, NextState_if_S] }
+        self.dna = {}
+        for i in range(num_states):
+            self.dna[i] = [
+                random.choice(['R', 'P', 'S']),   
+                random.randint(0, num_states-1),  
+                random.randint(0, num_states-1),  
+                random.randint(0, num_states-1)   
+            ]
+
+    def get_action(self):
+        return self.dna[self.current_state][0]
+
+    def update_state(self, opponent_move):
+        transition_index = self.move_to_index[opponent_move]
+        self.current_state = self.dna[self.current_state][transition_index]
+
+    def reset(self):
+        self.current_state = 0
+        self.fitness = 0
+
+    def mutate(self, mutation_rate=0.1):
+        for state in range(self.num_states):
+            if random.random() < mutation_rate:
+                if random.choice(['move', 'transition']) == 'move':
+                    self.dna[state][0] = random.choice(['R', 'P', 'S'])
+                else:
+                    transition_idx = random.randint(1, 3)
+                    self.dna[state][transition_idx] = random.randint(0, self.num_states-1)
+
+    @staticmethod
+    def crossover(parent1, parent2):
+        child = FSMAgent(parent1.num_states)
+        crossover_point = random.randint(1, parent1.num_states - 2)
+        for i in range(parent1.num_states):
+            if i <= crossover_point:
+                child.dna[i] = list(parent1.dna[i])
+            else:
+                child.dna[i] = list(parent2.dna[i])
+        return child
+
+# ==========================================
+# 2. THE TRAINING LOOP
+# ==========================================
+def play_match(agent1, agent2, num_rounds=50):
+    agent1.reset()
+    agent2.reset()
+    score1, score2 = 0, 0
+    beats = {'R': 'P', 'P': 'S', 'S': 'R'}
+    
+    for _ in range(num_rounds):
+        move1 = agent1.get_action()
+        move2 = agent2.get_action()
+        
+        if move1 != move2:
+            if beats[move1] == move2:
+                score2 += 1 
+            else:
+                score1 += 1 
+                
+        agent1.update_state(move2)
+        agent2.update_state(move1)
+        
+    agent1.fitness += score1
+    agent2.fitness += score2
+
+def next_generation(population, elite_percent=0.2):
+    population.sort(key=lambda x: x.fitness, reverse=True)
+    num_elites = int(len(population) * elite_percent)
+    new_population = population[:num_elites] 
+    
+    for elite in new_population:
+        elite.fitness = 0
+        
+    while len(new_population) < len(population):
+        parent1 = random.choice(population[:num_elites])
+        parent2 = random.choice(population[:num_elites])
+        child = FSMAgent.crossover(parent1, parent2)
+        child.mutate(mutation_rate=0.1)
+        new_population.append(child)
+        
+    return new_population
+
+def train_champion(pop_size=50, generations=500, rounds_per_match=50):
+    pop_A = [FSMAgent() for _ in range(pop_size)]
+    pop_B = [FSMAgent() for _ in range(pop_size)]
+    
+    print(f"Starting Co-Evolution: {generations} Generations...")
+    
+    for gen in range(generations):
+        for agent_a in pop_A:
+            opponents = random.sample(pop_B, 5)
+            for agent_b in opponents:
+                play_match(agent_a, agent_b, rounds_per_match)
+                
+        if gen % 50 == 0 or gen == generations - 1:
+            best_A = max(pop_A, key=lambda x: x.fitness)
+            print(f"Generation {gen:3d} | Best Agent Fitness: {best_A.fitness}")
+            
+        pop_A = next_generation(pop_A)
+        pop_B = next_generation(pop_B)
+        
+    print("Training Complete!")
+    return pop_A[0]
+
+# ==========================================
+# 3. EXECUTION (Train & Save)
+# ==========================================
+if __name__ == "__main__":
+    # Evolve the agent
+    champion = train_champion(pop_size=50, generations=500)
+    
+    # Save its brain (DNA) to a JSON file
+    with open('champion_dna.json', 'w') as f:
+        json.dump(champion.dna, f)
+        
+    print("Successfully saved 'champion_dna.json' to your folder!")
